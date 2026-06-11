@@ -66,10 +66,6 @@
         <h2>胶凝材料配比</h2>
         <div class="form-grid">
           <div class="form-item">
-            <label>水泥用量 (%)</label>
-            <input v-model.number="form.cementRatio" type="number" min="0" max="100" />
-          </div>
-          <div class="form-item">
             <label>粉煤灰掺量 (%)</label>
             <input v-model.number="form.flyAshRatio" type="number" min="0" max="100" />
           </div>
@@ -92,25 +88,18 @@
             <label>水泥密度 (kg/m³)</label>
             <input v-model.number="form.cementDensity" type="number" />
           </div>
-          <div class="form-item">
-            <label>粉煤灰密度 (kg/m³)</label>
-            <input v-model.number="form.flyAshDensity" type="number" />
-          </div>
-          <div class="form-item">
-            <label>矿粉密度 (kg/m³)</label>
-            <input v-model.number="form.slagDensity" type="number" />
-          </div>
+
           <div class="form-item">
             <label>砂表观密度 (kg/m³)</label>
-            <input v-model.number="form.sandApparentDensity" type="number" />
+            <input v-model.number="form.sandDensity" type="number" />
           </div>
           <div class="form-item">
             <label>石表观密度 (kg/m³)</label>
-            <input v-model.number="form.stoneApparentDensity" type="number" />
+            <input v-model.number="form.aggregateDensity" type="number" />
           </div>
           <div class="form-item">
             <label>砂堆积密度 (kg/m³)</label>
-            <input v-model.number="form.sandBulkDensity" type="number" />
+            <input v-model.number="form.sandCompactedDensity" type="number" />
           </div>
           <div class="form-item">
             <label>石堆积密度 (kg/m³)</label>
@@ -118,12 +107,9 @@
           </div>
           <div class="form-item">
             <label>水泥28d强度 (MPa)</label>
-            <input v-model.number="form.cementStrength28d" type="number" step="0.1" />
+            <input v-model.number="form.cementStrength" type="number" step="0.1" />
           </div>
-          <div class="form-item">
-            <label>粉煤灰28d强度 (MPa)</label>
-            <input v-model.number="form.flyAshStrength28d" type="number" step="0.1" />
-          </div>
+
         </div>
       </section>
 
@@ -142,18 +128,18 @@
             </tr>
           </thead>
           <tbody>
-            <tr><td>水胶比</td><td>{{ result.waterBinderRatio?.toFixed?.(3) ?? '-' }}</td></tr>
-            <tr><td>用水量 (kg/m³)</td><td>{{ result.waterContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>总胶凝材料 (kg/m³)</td><td>{{ result.totalBinder?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>水泥 (kg/m³)</td><td>{{ result.cementContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>粉煤灰 (kg/m³)</td><td>{{ result.flyAshContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>矿粉 (kg/m³)</td><td>{{ result.slagContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>砂用量 (kg/m³)</td><td>{{ result.sandContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>石用量 (kg/m³)</td><td>{{ result.stoneContent?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>外加剂 (kg/m³)</td><td>{{ result.admixtureContent?.toFixed?.(2) ?? '-' }}</td></tr>
-            <tr><td>砂率 (%)</td><td>{{ result.sandRatio?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>水胶比</td><td>{{ result.wcRatioLimited?.toFixed?.(3) ?? '-' }}</td></tr>
+            <tr><td>用水量 (kg/m³)</td><td>{{ result.adjustedWater?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>总胶凝材料 (kg/m³)</td><td>{{ result.binderContentChecked?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>水泥 (kg/m³)</td><td>{{ result.binderDistribution?.cement?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>粉煤灰 (kg/m³)</td><td>{{ result.binderDistribution?.flyAsh?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>矿粉 (kg/m³)</td><td>{{ result.binderDistribution?.slag?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>砂用量 (kg/m³)</td><td>{{ result.sandWeight?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>石用量 (kg/m³)</td><td>{{ result.stoneWeight?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>外加剂 (kg/m³)</td><td>{{ result.admixtureWeight?.toFixed?.(2) ?? '-' }}</td></tr>
+            <tr><td>砂率 (%)</td><td>{{ result.sandRatioAuto?.toFixed?.(1) ?? '-' }}</td></tr>
             <tr><td>总质量 (kg/m³)</td><td>{{ result.totalMass?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>25L试配 (kg)</td><td>{{ result.trial25L?.toFixed?.(2) ?? '-' }}</td></tr>
+            <tr><td>25L试配 (kg)</td><td>{{ result.trialWeights?.sand?.toFixed?.(2) ?? '-' }}</td></tr>
           </tbody>
         </table>
         <div v-if="result.steps?.length" class="steps">
@@ -181,7 +167,6 @@ import {
 } from './api'
 import {
   calculateFullDesign,
-  parseStrengthGrade,
   getDefaultSigma
 } from './engine/mix-design'
 
@@ -206,19 +191,16 @@ const form = reactive({
   slump: 180,
   maxAggregateSize: '25',
   aggregateType: 'crushed',
-  cementRatio: 70,
   flyAshRatio: 20,
   slagRatio: 10,
   admixtureDosage: 2.0,
   cementDensity: 3100,
-  flyAshDensity: 2300,
-  slagDensity: 2800,
-  sandApparentDensity: 2650,
-  stoneApparentDensity: 2700,
-  sandBulkDensity: 1500,
+  sandDensity: 2650,
+  aggregateDensity: 2700,
+	  stoneApparentDensity: 2700,
+  sandCompactedDensity: 1620,
   stoneBulkDensity: 1550,
-  cementStrength28d: 42.5,
-  flyAshStrength28d: 0
+  cementStrength: 42.5,
 })
 
 function saveApiBase() {
@@ -275,7 +257,7 @@ function fillFromData() {
     const d = extractNum(cement, 'density')
     if (d) form.cementDensity = d
     const s = extractNum(cement, 'strength_28d')
-    if (s) form.cementStrength28d = s
+    if (s) form.cementStrength = s
   }
   // 粉煤灰
   const flyAsh = avg['粉煤灰']
@@ -293,15 +275,15 @@ function fillFromData() {
   const sand = avg['砂'] || avg['机制砂']
   if (sand) {
     const d = extractNum(sand, 'apparent_density')
-    if (d) form.sandApparentDensity = d
+    if (d) form.sandDensity = d
     const b = extractNum(sand, 'bulk_density')
-    if (b) form.sandBulkDensity = b
+    if (b) form.sandCompactedDensity = b
   }
   // 石
   const stone = avg['石'] || avg['石子']
   if (stone) {
     const d = extractNum(stone, 'apparent_density')
-    if (d) form.stoneApparentDensity = d
+    if (d) form.aggregateDensity = d
     const b = extractNum(stone, 'bulk_density')
     if (b) form.stoneBulkDensity = b
   }
@@ -309,40 +291,30 @@ function fillFromData() {
 
 function calculate() {
   try {
-    const gradeInfo = parseStrengthGrade(form.strengthGrade)
-    if (!gradeInfo) {
-      error.value = '无法解析强度等级'
-      return
-    }
-
     const calcInput = {
       strengthGrade: form.strengthGrade,
-      designStrength: gradeInfo.designStrength,
       sigma: form.sigma || getDefaultSigma(form.strengthGrade),
       slump: form.slump,
       maxAggregateSize: parseFloat(form.maxAggregateSize),
-      aggregateType: form.aggregateType as 'crushed' | 'gravel',
-      cementRatio: form.cementRatio,
+      aggregateType: form.aggregateType as 'crushed' | 'rounded',
+      cementStrength: form.cementStrength,
       flyAshRatio: form.flyAshRatio,
       slagRatio: form.slagRatio,
       admixtureDosage: form.admixtureDosage,
       cementDensity: form.cementDensity,
-      flyAshDensity: form.flyAshDensity,
-      slagDensity: form.slagDensity,
-      sandApparentDensity: form.sandApparentDensity,
+      sandDensity: form.sandDensity,
+      aggregateDensity: form.aggregateDensity,
       stoneApparentDensity: form.stoneApparentDensity,
-      sandBulkDensity: form.sandBulkDensity,
       stoneBulkDensity: form.stoneBulkDensity,
-      cementStrength28d: form.cementStrength28d,
-      flyAshStrength28d: form.flyAshStrength28d
+      sandCompactedDensity: form.sandCompactedDensity,
     }
-
     result.value = calculateFullDesign(calcInput)
     error.value = ''
   } catch (e: any) {
     error.value = e.message || '计算失败'
     result.value = null
   }
+}
 }
 </script>
 
