@@ -2,8 +2,7 @@
  * mix-data-api HTTP 调用封装
  */
 
-// TODO: 部署后替换为实际的 mix-data-api URL化地址
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://您的云函数URL化地址'
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn'
 
 // 鉴权凭证（二选一）
 let _token = localStorage.getItem('mix_token') || ''
