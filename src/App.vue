@@ -6,6 +6,7 @@
         <label>
           API 地址：
           <input v-model="apiBase" placeholder="mix-data-api URL化地址" class="input" style="width: 320px" @change="saveApiBase" />
+          <button class="btn" @click="onResetApiBase" title="恢复默认 API 地址">重置</button>
         </label>
         <label>
           API Key：
@@ -55,7 +56,7 @@
             <label>骨料类型</label>
             <select v-model="form.aggregateType">
               <option value="crushed">碎石</option>
-              <option value="gravel">卵石</option>
+              <option value="rounded">卵石</option>
             </select>
           </div>
         </div>
@@ -95,7 +96,7 @@
           </div>
           <div class="form-item">
             <label>石表观密度 (kg/m³)</label>
-            <input v-model.number="form.aggregateDensity" type="number" />
+            <input v-model.number="form.stoneApparentDensity" type="number" />
           </div>
           <div class="form-item">
             <label>砂堆积密度 (kg/m³)</label>
@@ -130,7 +131,7 @@
           <tbody>
             <tr><td>水胶比</td><td>{{ result.wcRatioLimited?.toFixed?.(3) ?? '-' }}</td></tr>
             <tr><td>用水量 (kg/m³)</td><td>{{ result.adjustedWater?.toFixed?.(1) ?? '-' }}</td></tr>
-            <tr><td>总胶凝材料 (kg/m³)</td><td>{{ result.binderContentChecked?.toFixed?.(1) ?? '-' }}</td></tr>
+            <tr><td>总胶凝材料 (kg/m³)</td><td>{{ result.totalBinder?.toFixed?.(1) ?? '-' }}</td></tr>
             <tr><td>水泥 (kg/m³)</td><td>{{ result.binderDistribution?.cement?.toFixed?.(1) ?? '-' }}</td></tr>
             <tr><td>粉煤灰 (kg/m³)</td><td>{{ result.binderDistribution?.flyAsh?.toFixed?.(1) ?? '-' }}</td></tr>
             <tr><td>矿粉 (kg/m³)</td><td>{{ result.binderDistribution?.slag?.toFixed?.(1) ?? '-' }}</td></tr>
@@ -142,10 +143,10 @@
             <tr><td>25L试配 (kg)</td><td>{{ result.trialWeights?.sand?.toFixed?.(2) ?? '-' }}</td></tr>
           </tbody>
         </table>
-        <div v-if="result.steps?.length" class="steps">
+        <div v-if="result.engineResult?.steps?.length" class="steps">
           <h3>计算步骤</h3>
           <ol>
-            <li v-for="(step, i) in result.steps" :key="i">{{ step.description || step }}</li>
+            <li v-for="(step, i) in result.engineResult.steps" :key="i">{{ step.description || step }}</li>
           </ol>
         </div>
       </section>
@@ -163,7 +164,9 @@ import {
   getMaterialBindings,
   getLatestRecords,
   get30DayAvg,
-  setApiKey
+  setApiKey,
+  setApiBase,
+  resetApiBase
 } from './api'
 import {
   calculateFullDesign,
@@ -172,11 +175,12 @@ import {
 
 const strengthGrades = ['C20', 'C25', 'C30', 'C35', 'C40', 'C45', 'C50', 'C55']
 
-const apiBase = ref(localStorage.getItem('mix_api_base') || '')
+const apiBase = ref(localStorage.getItem('mix_api_base') || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn')
+// 注意：不要把 API Key 写进前端默认值（会随构建产物泄露）。用户需自行在界面输入。
 const apiKey = ref(localStorage.getItem('mix_api_key') || '')
-const plantId = ref(localStorage.getItem('mix_plant_id') || '')
+const plantId = ref(localStorage.getItem('mix_plant_id') || 'plant_ld1')
 const loading = ref(false)
-const dataLoaded = ref(false)
+const dataLoaded = ref(true)
 const error = ref('')
 const result = ref<any>(null)
 
@@ -196,7 +200,6 @@ const form = reactive({
   admixtureDosage: 2.0,
   cementDensity: 3100,
   sandDensity: 2650,
-  aggregateDensity: 2700,
 	  stoneApparentDensity: 2700,
   sandCompactedDensity: 1620,
   stoneBulkDensity: 1550,
@@ -204,7 +207,10 @@ const form = reactive({
 })
 
 function saveApiBase() {
-  localStorage.setItem('mix_api_base', apiBase.value)
+  setApiBase(apiBase.value)
+}
+function onResetApiBase() {
+  apiBase.value = resetApiBase()
 }
 function saveApiKey() {
   setApiKey(apiKey.value)
@@ -244,47 +250,42 @@ async function fetchData() {
 }
 
 function fillFromData() {
-  // 尝试从30天均值数据填充材料参数
+  // 从30天均值数据填充材料参数。
+  // 服务端 data_content 的值为 { value, photo, ... } 结构（normalizeFieldEntry），
+  // 字段名为 camelCase（如 strength28d / apparentDensity / compactedDensity）。
   const avg = avg30d.value || {}
-  const extractNum = (record: any, key: string) => {
-    const v = record?.data_content?.[key]
-    return v ? parseFloat(v) : null
+  const extractNum = (record: any, ...keys: string[]) => {
+    for (const key of keys) {
+      const entry = record?.data_content?.[key]
+      const raw = entry && entry.value !== undefined ? entry.value : entry
+      const n = raw !== null && raw !== undefined ? parseFloat(raw) : NaN
+      if (Number.isFinite(n) && n > 0) return n
+    }
+    return null
   }
 
-  // 水泥
+  // 水泥（30天均值仅暴露 strength28d 与 apparentDensity）
   const cement = avg['水泥']
   if (cement) {
-    const d = extractNum(cement, 'density')
+    const d = extractNum(cement, 'apparentDensity', 'density')
     if (d) form.cementDensity = d
-    const s = extractNum(cement, 'strength_28d')
+    const s = extractNum(cement, 'strength28d', 'fce', 'actualStrength')
     if (s) form.cementStrength = s
-  }
-  // 粉煤灰
-  const flyAsh = avg['粉煤灰']
-  if (flyAsh) {
-    const d = extractNum(flyAsh, 'density')
-    if (d) form.flyAshDensity = d
-  }
-  // 矿粉
-  const slag = avg['矿粉']
-  if (slag) {
-    const d = extractNum(slag, 'density')
-    if (d) form.slagDensity = d
   }
   // 砂
   const sand = avg['砂'] || avg['机制砂']
   if (sand) {
-    const d = extractNum(sand, 'apparent_density')
+    const d = extractNum(sand, 'apparentDensity', 'density')
     if (d) form.sandDensity = d
-    const b = extractNum(sand, 'bulk_density')
+    const b = extractNum(sand, 'compactedDensity', 'bulkDensity')
     if (b) form.sandCompactedDensity = b
   }
   // 石
-  const stone = avg['石'] || avg['石子']
+  const stone = avg['石子'] || avg['石']
   if (stone) {
-    const d = extractNum(stone, 'apparent_density')
-    if (d) form.aggregateDensity = d
-    const b = extractNum(stone, 'bulk_density')
+    const d = extractNum(stone, 'apparentDensity', 'density')
+    if (d) form.stoneApparentDensity = d
+    const b = extractNum(stone, 'compactedDensity', 'bulkDensity')
     if (b) form.stoneBulkDensity = b
   }
 }
@@ -303,7 +304,10 @@ function calculate() {
       admixtureDosage: form.admixtureDosage,
       cementDensity: form.cementDensity,
       sandDensity: form.sandDensity,
-      aggregateDensity: form.aggregateDensity,
+      // 引擎 mix-design.ts 中 aggregateDensity(line309 骨料质量换算) 与 stoneApparentDensity(line312
+      // 石子空隙比) 实为同一物理量「石表观密度」的两个变量；UI 只有一个「石表观密度」输入，
+      // 绑定在 stoneApparentDensity 上，故此处把同一值喂给 aggregateDensity，避免它冻在默认值。
+      aggregateDensity: form.stoneApparentDensity,
       stoneApparentDensity: form.stoneApparentDensity,
       stoneBulkDensity: form.stoneBulkDensity,
       sandCompactedDensity: form.sandCompactedDensity,
@@ -314,7 +318,6 @@ function calculate() {
     error.value = e.message || '计算失败'
     result.value = null
   }
-}
 }
 </script>
 

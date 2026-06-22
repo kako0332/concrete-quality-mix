@@ -2,7 +2,22 @@
  * mix-data-api HTTP 调用封装
  */
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn'
+const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn'
+
+// API 地址可在运行时由前端设置（App.vue 的“API 地址”输入框）
+let _apiBase = localStorage.getItem('mix_api_base') || DEFAULT_API_BASE
+
+export function setApiBase(base: string) {
+  _apiBase = base || DEFAULT_API_BASE
+  localStorage.setItem('mix_api_base', _apiBase)
+}
+
+/** 恢复默认 API 地址，清除本地自定义（用于界面“重置”按钮，避免用户改错地址后无法恢复） */
+export function resetApiBase() {
+  _apiBase = DEFAULT_API_BASE
+  localStorage.removeItem('mix_api_base')
+  return DEFAULT_API_BASE
+}
 
 // 鉴权凭证（二选一）
 let _token = localStorage.getItem('mix_token') || ''
@@ -32,7 +47,7 @@ async function request(action: string, params: Record<string, any> = {}) {
     body.apiKey = _apiKey
   }
 
-  const res = await fetch(API_BASE, {
+  const res = await fetch(_apiBase, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
