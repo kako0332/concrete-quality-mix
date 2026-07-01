@@ -13,8 +13,13 @@ npm run dev
 
 ## 配置
 
-1. 复制 `.env` 为 `.env.local`，填写 `VITE_API_BASE`（mix-data-api 云函数 URL化地址）
+1. 复制 `.env` 为 `.env.local`，填写 `VITE_API_BASE`（正式环境的 mix-data-api 云函数 URL 化地址）
 2. 或在页面上方直接填写 API 地址、API Key、站点ID
+
+说明：
+- 不配置 API 也可以直接用页面默认值做本地配合比计算
+- “加载数据 / 从接口数据填充 / 生成报告” 这些能力依赖正式可用的 `mix-data-api`
+- 仓库中不应再保留测试空间的默认云函数地址
 
 ## 项目结构
 

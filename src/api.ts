@@ -2,20 +2,32 @@
  * mix-data-api HTTP 调用封装
  */
 
-const DEFAULT_API_BASE = import.meta.env.VITE_API_BASE || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn'
+const DEFAULT_API_BASE = (import.meta.env.VITE_API_BASE || '').trim()
 
 // API 地址可在运行时由前端设置（App.vue 的“API 地址”输入框）
 let _apiBase = localStorage.getItem('mix_api_base') || DEFAULT_API_BASE
 
+export function getApiBase() {
+  return _apiBase
+}
+
 export function setApiBase(base: string) {
-  _apiBase = base || DEFAULT_API_BASE
-  localStorage.setItem('mix_api_base', _apiBase)
+  _apiBase = (base || DEFAULT_API_BASE).trim()
+  if (_apiBase) {
+    localStorage.setItem('mix_api_base', _apiBase)
+  } else {
+    localStorage.removeItem('mix_api_base')
+  }
 }
 
 /** 恢复默认 API 地址，清除本地自定义（用于界面“重置”按钮，避免用户改错地址后无法恢复） */
 export function resetApiBase() {
   _apiBase = DEFAULT_API_BASE
-  localStorage.removeItem('mix_api_base')
+  if (_apiBase) {
+    localStorage.setItem('mix_api_base', _apiBase)
+  } else {
+    localStorage.removeItem('mix_api_base')
+  }
   return DEFAULT_API_BASE
 }
 
@@ -38,6 +50,10 @@ export function getToken() {
 }
 
 async function request(action: string, params: Record<string, any> = {}) {
+  if (!_apiBase) {
+    throw new Error('请先配置正式可用的 mix-data-api 地址')
+  }
+
   const body: Record<string, any> = { action, ...params }
 
   // 优先 token，其次 apiKey
@@ -52,6 +68,10 @@ async function request(action: string, params: Record<string, any> = {}) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   })
+
+  if (!res.ok) {
+    throw new Error(`接口请求失败（HTTP ${res.status}）`)
+  }
 
   const json = await res.json()
   if (json.errCode && json.errCode !== 0) {

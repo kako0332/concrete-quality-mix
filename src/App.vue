@@ -20,6 +20,9 @@
           {{ loading ? '加载中...' : '加载数据' }}
         </button>
       </div>
+      <p class="config-tip">
+        不配置接口也可以直接手动计算；只有“加载数据”和“从接口数据填充”依赖正式环境的 `mix-data-api`。
+      </p>
     </header>
 
     <div v-if="error" class="error-bar">{{ error }}</div>
@@ -164,6 +167,7 @@ import {
   getMaterialBindings,
   getLatestRecords,
   get30DayAvg,
+  getApiBase,
   setApiKey,
   setApiBase,
   resetApiBase
@@ -175,7 +179,7 @@ import {
 
 const strengthGrades = ['C20', 'C25', 'C30', 'C35', 'C40', 'C45', 'C50', 'C55']
 
-const apiBase = ref(localStorage.getItem('mix_api_base') || 'https://env-00jy6fhl9xop.dev-hz.cloudbasefunction.cn')
+const apiBase = ref(getApiBase())
 // 注意：不要把 API Key 写进前端默认值（会随构建产物泄露）。用户需自行在界面输入。
 const apiKey = ref(localStorage.getItem('mix_api_key') || '')
 const plantId = ref(localStorage.getItem('mix_plant_id') || 'plant_ld1')
@@ -218,7 +222,7 @@ function saveApiKey() {
 
 async function fetchData() {
   if (!apiBase.value) {
-    error.value = '请先填写 API 地址'
+    error.value = '请先填写正式环境可用的 API 地址'
     return
   }
   if (!plantId.value && !apiKey.value) {
@@ -238,10 +242,20 @@ async function fetchData() {
       getLatestRecords().catch(e => ({ error: e.message })),
       get30DayAvg().catch(e => ({ error: e.message }))
     ])
-    bindings.value = b
-    latestRecords.value = l
-    avg30d.value = a
+
+    const loadErrors: string[] = []
+    if (b?.error) loadErrors.push(`材料绑定：${b.error}`)
+    if (l?.error) loadErrors.push(`最新检测：${l.error}`)
+    if (a?.error) loadErrors.push(`30天均值：${a.error}`)
+
+    bindings.value = b?.error ? null : b
+    latestRecords.value = l?.error ? null : l
+    avg30d.value = a?.error ? null : a
     dataLoaded.value = true
+
+    if (loadErrors.length > 0) {
+      error.value = `接口数据加载失败：${loadErrors.join('；')}`
+    }
   } catch (e: any) {
     error.value = e.message || '数据加载失败'
   } finally {
@@ -337,6 +351,7 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; b
 .app-header h1 { font-size: 22px; margin-bottom: 16px; }
 .config-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .config-bar label { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+.config-tip { margin-top: 10px; font-size: 12px; line-height: 1.5; color: rgba(255,255,255,0.88); }
 
 .input, select {
   height: 32px; padding: 0 8px; border: 1px solid #dcdfe6; border-radius: 4px;
